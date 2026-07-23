@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>输液提醒小助手</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #f5576c 75%, #4facfe 100%);
+            background-size: 400% 400%;
+            animation: gradientShift 15s ease infinite;
+            overflow-x: hidden;
+        }
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        }
+
+        .glass-button {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.6), rgba(118, 75, 162, 0.6));
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .glass-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 40px rgba(102, 126, 234, 0.4);
+        }
+
+        .glass-button:active {
+            transform: translateY(0);
+        }
+
+        .glass-button.selected {
+            background: linear-gradient(135deg, rgba(79, 172, 254, 0.8), rgba(0, 242, 254, 0.8));
+            border-color: rgba(255, 255, 255, 0.8);
+            box-shadow: 0 0 30px rgba(79, 172, 254, 0.6);
+        }
+
+        .water-drop-btn {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, rgba(79, 172, 254, 0.8), rgba(0, 242, 254, 0.6));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            box-shadow: 0 10px 40px rgba(79, 172, 254, 0.5);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .water-drop-btn:active {
+            transform: scale(0.92);
+            box-shadow: 0 5px 20px rgba(79, 172, 254, 0.6);
+        }
+
+        .water-drop-btn::after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.8), transparent 60%);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        .ripple {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.6);
+            animation: rippleEffect 0.6s ease-out;
+            pointer-events: none;
+        }
+
+        @keyframes rippleEffect {
+            0% {
+                width: 0;
+                height: 0;
+                opacity: 1;
+            }
+            100% {
+                width: 200px;
+                height: 200px;
+                opacity: 0;
+            }
+        }
+
+        .page-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s ease;
+        }
+
+        .page-hidden-left {
+            transform: translateX(-100%);
+            opacity: 0;
+        }
+
+        .page-hidden-right {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+
+        .page-active {
+            transform: translateX(0);
+            opacity: 1;
+        }
+
+        .count-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .count-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .count-dot.completed {
+            background: linear-gradient(135deg, #4facfe, #00f2fe);
+            box-shadow: 0 0 10px rgba(79, 172, 254, 0.6);
+        }
+
+        .progress-ring {
+            transform: rotate(-90deg);
+        }
+
+        .progress-ring-circle {
+            transition: stroke-dashoffset 0.3s ease;
+        }
+
+        .result-number {
+            font-size: clamp(3rem, 10vw, 5rem);
+            font-weight: 700;
+            background: linear-gradient(135deg, #4facfe, #00f2fe);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .result-label {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: clamp(0.875rem, 2.5vw, 1rem);
+        }
+
+        .time-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 16px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .icon-large {
+            width: 48px;
+            height: 48px;
+            margin-bottom: 12px;
+        }
+
+        @media (max-width: 640px) {
+            .icon-large {
+                width: 40px;
+                height: 40px;
+            }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease forwards;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .pulse-glow {
+            animation: pulseGlow 2s ease-in-out infinite;
+        }
+
+        @keyframes pulseGlow {
+            0%, 100% {
+                box-shadow: 0 10px 40px rgba(79, 172, 254, 0.5);
+            }
+            50% {
+                box-shadow: 0 10px 60px rgba(79, 172, 254, 0.8);
+            }
+        }
+
+        .shimmer {
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            background-size: 200% 100%;
+            animation: shimmer 2s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Page 1: 容量选择 -->
+    <div id="page1" class="page-container page-active">
+        <div class="w-full max-w-md mx-4">
+            <div class="glass-card rounded-3xl p-8 text-center">
+                <!-- Logo / Icon -->
+                <div class="flex justify-center mb-6">
+                    <svg class="icon-large text-white/90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/>
+                    </svg>
+                </div>
+
+                <!-- 标题 -->
+                <h1 class="text-2xl sm:text-3xl font-bold text-white mb-3">输液提醒小助手</h1>
+                <p class="text-white/80 text-sm sm:text-base mb-8">选择输液袋容量，开始计算</p>
+
+                <!-- 容量选项 -->
+                <div class="grid grid-cols-2 gap-4 mb-8">
+                    <button onclick="selectVolume(50)" class="glass-button rounded-2xl py-6 px-4 text-white font-bold text-xl" data-volume="50">
+                        <div class="text-3xl mb-1">💧</div>
+                        50ml
+                    </button>
+                    <button onclick="selectVolume(100)" class="glass-button rounded-2xl py-6 px-4 text-white font-bold text-xl" data-volume="100">
+                        <div class="text-3xl mb-1">💧💧</div>
+                        100ml
+                    </button>
+                    <button onclick="selectVolume(250)" class="glass-button rounded-2xl py-6 px-4 text-white font-bold text-xl" data-volume="250">
+                        <div class="text-3xl mb-1">💧💧💧</div>
+                        250ml
+                    </button>
+                    <button onclick="selectVolume(500)" class="glass-button rounded-2xl py-6 px-4 text-white font-bold text-xl" data-volume="500">
+                        <div class="text-3xl mb-1">💧💧💧💧</div>
+                        500ml
+                    </button>
+                </div>
+
+                <!-- 确认按钮 -->
+                <button id="confirmVolumeBtn" onclick="confirmVolume()" class="w-full glass-button rounded-xl py-4 text-white font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                    确认选择 →
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page 2: 滴速测算 -->
+    <div id="page2" class="page-container page-hidden-right">
+        <div class="w-full max-w-md mx-4">
+            <div class="glass-card rounded-3xl p-8 text-center relative">
+                <!-- 返回按钮 -->
+                <button onclick="goBackToPage1()" class="absolute top-4 left-4 text-white/70 hover:text-white transition-colors z-10">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                    </svg>
+                </button>
+
+                <!-- 步骤指示 -->
+                <div class="count-indicator justify-center mb-6 flex-wrap" id="countIndicator">
+                    <!-- JS会生成20个小圆点 -->
+                </div>
+
+                <!-- 水滴按钮 -->
+                <div class="flex flex-col items-center mb-8">
+                    <div id="waterDropBtn" class="water-drop-btn pulse-glow mb-6" onclick="recordDrop()">
+                        <svg class="w-16 h-16 text-white" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 2.69l5.66 5.66a8 8 0 11-11.31 0z"/>
+                        </svg>
+                    </div>
+
+                    <!-- 实时速率显示 -->
+                    <div id="realtimeRate" class="text-white/60 text-sm mb-2">点击水滴记录滴速</div>
+                    <div id="dropsRemaining" class="text-white/80 text-lg font-semibold">还需点击 <span id="remainingCount">20</span> 次</div>
+                </div>
+
+                <!-- 引导文字 -->
+                <p id="guideText" class="text-white/90 text-sm sm:text-base mb-8 leading-relaxed">
+                    观察输液滴速，<span class="font-bold text-white">按实际频率</span>点击上方水滴按钮
+                </p>
+
+                <!-- 确认按钮（计算完成后显示） -->
+                <button id="confirmRateBtn" onclick="confirmRate()" class="w-full glass-button rounded-xl py-4 text-white font-semibold text-lg hidden">
+                    我已知晓，查看结果 →
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page 3: 结果展示 -->
+    <div id="page3" class="page-container page-hidden-right">
+        <div class="w-full max-w-md mx-4">
+            <div class="glass-card rounded-3xl p-8 text-center relative">
+                <!-- 重新计算按钮 -->
+                <button onclick="resetAll()" class="absolute top-4 right-4 text-white/70 hover:text-white transition-colors z-10">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
+                </button>
+
+                <!-- 完成图标 -->
+                <div class="flex justify-center mb-6 fade-in">
+                    <div class="w-20 h-20 rounded-full bg-gradient-to-r from-green-400 to-blue-500 flex items-center justify-center">
+                        <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+                        </svg>
+                    </div>
+                </div>
+
+                <!-- 主结果：输液时长 -->
+                <div class="mb-8 fade-in" style="animation-delay: 0.2s">
+                    <p class="result-label mb-2">预计输液总时长</p>
+                    <div class="result-number" id="totalDuration">--</div>
+                    <p class="result-label">分钟</p>
+                </div>
+
+                <!-- 输液结束时间 -->
+                <div class="time-card mb-6 fade-in" style="animation-delay: 0.4s">
+                    <div class="flex items-center justify-center mb-3">
+                        <svg class="w-6 h-6 text-white/80 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        <span class="text-white/90 font-semibold">预估结束时间</span>
+                    </div>
+                    <div class="text-3xl sm:text-4xl font-bold text-white" id="endTime">--:--</div>
+                    <div class="text-white/70 text-sm mt-1" id="endDate">----/--/--</div>
+                </div>
+
+                <!-- 当前滴速信息 -->
+                <div class="glass-card rounded-xl p-4 mb-6 fade-in" style="animation-delay: 0.6s">
+                    <p class="text-white/80 text-sm mb-1">当前滴速</p>
+                    <p class="text-white text-xl font-bold"><span id="finalDropsPerMinute">--</span> 滴/分钟</p>
+                </div>
+
+                <!-- 提示信息 -->
+                <p class="text-white/60 text-xs text-center fade-in" style="animation-delay: 0.8s">
+                    💡 建议提前5分钟提醒医护人员<br>
+                    实际结束时间可能因个体差异略有不同
+                </p>
+
+                <!-- 2.0功能预留入口（隐藏） -->
+                <div id="calendarReminder" class="hidden mt-6">
+                    <button onclick="addToCalendar()" class="w-full glass-button rounded-xl py-3 text-white font-semibold text-sm">
+                        📅 添加到日历提醒
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局状态
+        let selectedVolume = null;
+        let dropsRecorded = 0;
+        const TOTAL_DROPS = 20;
+        let dropTimestamps = [];
+        let dropsPerMinute = 0;
+
+        // 初始化计数指示器
+        function initCountIndicator() {
+            const container = document.getElementById('countIndicator');
+            container.innerHTML = '';
+            for (let i = 0; i < TOTAL_DROPS; i++) {
+                const dot = document.createElement('div');
+                dot.className = 'count-dot';
+                dot.id = `dot-${i}`;
+                container.appendChild(dot);
+            }
+        }
+
+        // 选择容量
+        function selectVolume(volume) {
+            selectedVolume = volume;
+
+            // 更新按钮样式
+            document.querySelectorAll('[data-volume]').forEach(btn => {
+                btn.classList.remove('selected');
+                if (parseInt(btn.dataset.volume) === volume) {
+                    btn.classList.add('selected');
+                }
+            });
+
+            // 启用确认按钮
+            document.getElementById('confirmVolumeBtn').disabled = false;
+        }
+
+        // 确认容量，进入下一页
+        function confirmVolume() {
+            if (!selectedVolume) return;
+
+            // 初始化第二页
+            initCountIndicator();
+            dropsRecorded = 0;
+            dropTimestamps = [];
+            updateDropUI();
+
+            // 切换页面
+            document.getElementById('page1').className = 'page-container page-hidden-left';
+            document.getElementById('page2').className = 'page-container page-active';
+        }
+
+        // 返回第一页
+        function goBackToPage1() {
+            document.getElementById('page2').className = 'page-container page-hidden-right';
+            document.getElementById('page1').className = 'page-container page-active';
+        }
+
+        // 记录水滴点击
+        function recordDrop() {
+            if (dropsRecorded >= TOTAL_DROPS) return;
+
+            const now = Date.now();
+            dropTimestamps.push(now);
+            dropsRecorded++;
+
+            // 创建涟漪效果
+            createRipple();
+
+            // 更新计数指示器
+            const dot = document.getElementById(`dot-${dropsRecorded - 1}`);
+            if (dot) {
+                dot.classList.add('completed');
+            }
+
+            // 更新UI
+            updateDropUI();
+
+            // 如果完成了20次点击
+            if (dropsRecorded >= TOTAL_DROPS) {
+                calculateRate();
+            }
+        }
+
+        // 创建涟漪效果
+        function createRipple() {
+            const btn = document.getElementById('waterDropBtn');
+            const ripple = document.createElement('div');
+            ripple.className = 'ripple';
+            // 居中涟漪
+            ripple.style.left = '50%';
+            ripple.style.top = '50%';
+            ripple.style.transform = 'translate(-50%, -50%)';
+            btn.appendChild(ripple);
+
+            setTimeout(() => {
+                ripple.remove();
+            }, 600);
+        }
+
+        // 更新滴速UI
+        function updateDropUI() {
+            const remaining = TOTAL_DROPS - dropsRecorded;
+            document.getElementById('remainingCount').textContent = remaining;
+
+            if (dropsRecorded >= 2) {
+                // 计算实时滴速（最近10次点击的平均间隔）
+                const recentCount = Math.min(dropsRecorded, 10);
+                const recentTimestamps = dropTimestamps.slice(-recentCount);
+                const totalTimeMs = recentTimestamps[recentTimestamps.length - 1] - recentTimestamps[0];
+                const avgIntervalMs = totalTimeMs / (recentTimestamps.length - 1);
+                const realtimeRate = Math.round((60000 / avgIntervalMs) * 10) / 10;
+
+                document.getElementById('realtimeRate').textContent = `约 ${realtimeRate.toFixed(1)} 滴/分钟`;
+            } else {
+                document.getElementById('realtimeRate').textContent = '点击水滴记录滴速';
+            }
+
+            if (dropsRecorded >= TOTAL_DROPS) {
+                document.getElementById('dropsRemaining').textContent = '✓ 测量完成';
+                document.getElementById('waterDropBtn').classList.remove('pulse-glow');
+                document.getElementById('waterDropBtn').style.cursor = 'default';
+            }
+        }
+
+        // 计算最终滴速
+        function calculateRate() {
+            if (dropTimestamps.length < 2) return;
+
+            // 计算总时间（从第一次点击到最后一次点击）
+            const totalTimeMs = dropTimestamps[dropTimestamps.length - 1] - dropTimestamps[0];
+            const avgIntervalMs = totalTimeMs / (dropTimestamps.length - 1);
+
+            // 计算每分钟滴数
+            dropsPerMinute = Math.round(60000 / avgIntervalMs);
+
+            // 更新UI
+            document.getElementById('realtimeRate').textContent = `${dropsPerMinute} 滴/分钟`;
+            document.getElementById('guideText').innerHTML = '滴速已记录，请确认后查看计算结果';
+            document.getElementById('confirmRateBtn').classList.remove('hidden');
+        }
+
+        // 确认滴速，进入结果页
+        function confirmRate() {
+            calculateResults();
+
+            // 切换页面
+            document.getElementById('page2').className = 'page-container page-hidden-left';
+            document.getElementById('page3').className = 'page-container page-active';
+        }
+
+        // 计算最终结果
+        function calculateResults() {
+            // 国标：20滴 = 1ml
+            const mlPerMinute = dropsPerMinute / 20;
+
+            // 计算总时长（分钟）
+            const totalMinutes = Math.round(selectedVolume / mlPerMinute);
+
+            // 获取当前时间
+            const now = new Date();
+            const endTime = new Date(now.getTime() + totalMinutes * 60000);
+
+            // 更新结果显示
+            document.getElementById('totalDuration').textContent = totalMinutes;
+            document.getElementById('endTime').textContent = formatTime(endTime);
+            document.getElementById('endDate').textContent = formatDate(endTime);
+            document.getElementById('finalDropsPerMinute').textContent = dropsPerMinute;
+        }
+
+        // 格式化时间
+        function formatTime(date) {
+            const hours = date.getHours().toString().padStart(2, '0');
+            const minutes = date.getMinutes().toString().padStart(2, '0');
+            return `${hours}:${minutes}`;
+        }
+
+        // 格式化日期
+        function formatDate(date) {
+            const year = date.getFullYear();
+            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+            const day = date.getDate().toString().padStart(2, '0');
+            return `${year}/${month}/${day}`;
+        }
+
+        // 重置所有状态，返回第一页
+        function resetAll() {
+            selectedVolume = null;
+            dropsRecorded = 0;
+            dropTimestamps = [];
+            dropsPerMinute = 0;
+
+            // 重置按钮状态
+            document.querySelectorAll('[data-volume]').forEach(btn => {
+                btn.classList.remove('selected');
+            });
+            document.getElementById('confirmVolumeBtn').disabled = true;
+
+            // 重置第二页
+            document.getElementById('confirmRateBtn').classList.add('hidden');
+            document.getElementById('waterDropBtn').classList.add('pulse-glow');
+            document.getElementById('waterDropBtn').style.cursor = 'pointer';
+            document.getElementById('guideText').innerHTML = '观察输液滴速，<span class="font-bold text-white">按实际频率</span>点击上方水滴按钮';
+            document.getElementById('dropsRemaining').innerHTML = '还需点击 <span id="remainingCount">20</span> 次';
+            document.getElementById('realtimeRate').textContent = '点击水滴记录滴速';
+
+            // 切换回第一页
+            document.getElementById('page3').className = 'page-container page-hidden-right';
+            document.getElementById('page2').className = 'page-container page-hidden-right';
+            document.getElementById('page1').className = 'page-container page-active';
+        }
+
+        // 2.0功能：添加到日历（预留接口）
+        function addToCalendar() {
+            if (dropsPerMinute === 0) return;
+
+            const now = new Date();
+            const totalMinutes = Math.round(selectedVolume / (dropsPerMinute / 20));
+            const endTime = new Date(now.getTime() + totalMinutes * 60000);
+            const reminderTime = new Date(endTime.getTime() - 5 * 60000); // 提前5分钟
+
+            // 尝试调用系统日历API（仅限部分安卓设备）
+            try {
+                const title = encodeURIComponent('输液完成提醒');
+                const startTime = formatCalendarDate(reminderTime);
+                const endTimeStr = formatCalendarDate(endTime);
+                const description = encodeURIComponent('输液即将完成，请提前联系医护人员');
+
+                const calendarUrl = `intent://calendar?action=INSERT&title=${title}&beginTime=${startTime}&endTime=${endTimeStr}&description=${description}#Intent;scheme=android.intent;package=com.android.calendar;end`;
+
+                if (/Android/i.test(navigator.userAgent)) {
+                    window.location.href = calendarUrl;
+                } else {
+                    alert('日历提醒功能仅支持安卓设备，建议您手动设置提醒。');
+                }
+            } catch (e) {
+                console.error('日历调用失败:', e);
+                alert('无法自动添加日历，建议您手动设置提醒。');
+            }
+        }
+
+        // 格式化日历日期（毫秒时间戳）
+        function formatCalendarDate(date) {
+            return date.getTime().toString();
+        }
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            initCountIndicator();
+        });
+    </script>
+</body>
+</html>
