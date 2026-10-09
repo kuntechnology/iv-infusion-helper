@@ -255,6 +255,12 @@
                 <h1 class="text-2xl sm:text-3xl font-bold text-white mb-3">输液提醒小助手</h1>
                 <p class="text-white/80 text-sm sm:text-base mb-8">选择输液袋容量，开始计算</p>
 
+                <!-- 安全提示：始终在主要操作之前呈现 -->
+                <aside role="note" aria-labelledby="safetyNoticeTitle" class="mb-6 rounded-xl border-2 border-amber-200 bg-amber-50 p-4 text-left text-amber-950 shadow-lg">
+                    <h2 id="safetyNoticeTitle" class="mb-2 text-base font-bold">重要安全提示</h2>
+                    <p class="text-sm leading-relaxed">本工具仅用于演示和估算，不用于临床决策或调节输液。当前需人工点击记录滴速，并按固定 <strong>20 滴/ml</strong> 假设估算；实际滴系数和速度须由医护人员依据输液器规格确认。请勿依赖本页结果作为任何治疗或护理指示。</p>
+                </aside>
+
                 <!-- 容量选项 -->
                 <div class="grid grid-cols-2 gap-4 mb-8">
                     <button onclick="selectVolume(50)" class="glass-button rounded-2xl py-6 px-4 text-white font-bold text-xl" data-volume="50">
